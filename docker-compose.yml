@@ -1,0 +1,11 @@
+version: '3.9'
+
+services:
+  my-java-app:
+    build: .
+    image: gpt-qazaq-eken-image
+    volumes:
+      - ./app_data:/app/data
+
+volumes:
+  app_data_volume:

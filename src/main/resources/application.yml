@@ -1,0 +1,10 @@
+telegram:
+  bot:
+    token: "token"
+    username: "bot"
+    open-ai-token: "token"
+    admin-user-login: "login"
+    admin-user-chat-id: 123
+    users:
+      - login: "login"
+        chat-id: 123
