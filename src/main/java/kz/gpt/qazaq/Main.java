@@ -3,6 +3,7 @@ package kz.gpt.qazaq;
 
 import com.google.gson.Gson;
 import com.theokanning.openai.service.OpenAiService;
+import lombok.extern.slf4j.Slf4j;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class Main {
     public static void main(String[] args) throws TelegramApiException {
         YamlConfigReader configReader = new YamlConfigReader("application.yml");
@@ -27,6 +29,6 @@ public class Main {
         BotService botService = new BotService(botUsername, botToken, openAiService, new Gson(), Long.valueOf(chatId), login, usersMap);
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(botService);
-
+        log.info("service started");
     }
 }

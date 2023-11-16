@@ -1,5 +1,5 @@
 # Use the official OpenJDK 17 base image
-FROM openjdk:17
+FROM arm64v8/openjdk
 
 # Create an app directory in the container
 WORKDIR /app

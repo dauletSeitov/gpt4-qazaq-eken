@@ -1,9 +1,10 @@
 version: '3.9'
 
 services:
-  my-java-app:
+  gpt-telegram-bot:
     build: .
     image: gpt-qazaq-eken-image
+    restart: always
     volumes:
       - ./app_data:/app/data
 
