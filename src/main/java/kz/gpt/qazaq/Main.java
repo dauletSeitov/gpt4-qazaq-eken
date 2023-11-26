@@ -8,6 +8,8 @@ import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,8 +27,10 @@ public class Main {
         List<Map<String, Object>> users = configReader.getValue("telegram.bot.users");
         Map<String, Long> usersMap = users.stream().collect(Collectors.toMap(itm -> (String) itm.get("login"), itm -> Long.valueOf(itm.get("chat-id").toString())));
 
-        OpenAiService openAiService = new OpenAiService(token);
-        BotService botService = new BotService(botUsername, botToken, openAiService, new Gson(), Long.valueOf(chatId), login, usersMap);
+        OpenAiService openAiService = new OpenAiService(token, Duration.ofSeconds(15));
+        OpenAiService serviceWithoutTimeout = new OpenAiService(token, Duration.ofSeconds(200));
+
+        BotService botService = new BotService(botUsername, botToken, openAiService, serviceWithoutTimeout, new Gson(), Long.valueOf(chatId), login, usersMap);
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(botService);
         log.info("service started");

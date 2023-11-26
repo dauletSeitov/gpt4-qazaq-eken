@@ -31,7 +31,8 @@ public class BotService extends TelegramLongPollingBot {
 
     private final String botUsername;
     private final String botToken;
-    private final OpenAiService service;
+    private final OpenAiService serviceWithTimeout;
+    private final OpenAiService serviceWithoutTimeout;
     private final Gson gson;
     private static final String PATH = "data/users.json";
 
@@ -39,10 +40,11 @@ public class BotService extends TelegramLongPollingBot {
     private Map<String, Long> authorizedUsers = new HashMap<>();
     private final Long adminChatId;
 
-    public BotService(String botUsername, String botToken, OpenAiService service, Gson gson, Long adminChatId, String adminLogin, Map<String, Long> users) {
+    public BotService(String botUsername, String botToken, OpenAiService serviceWithTimeout, OpenAiService serviceWithoutTimeout, Gson gson, Long adminChatId, String adminLogin, Map<String, Long> users) {
         this.botUsername = botUsername;
         this.botToken = botToken;
-        this.service = service;
+        this.serviceWithTimeout = serviceWithTimeout;
+        this.serviceWithoutTimeout = serviceWithoutTimeout;
         this.gson = gson;
         this.adminChatId = adminChatId;
 
@@ -92,9 +94,7 @@ public class BotService extends TelegramLongPollingBot {
     }
 
     private void validate(Message message) throws TelegramApiException {
-
         String userName = message.getFrom().getUserName();
-
         if (!authorizedUsers.containsKey(userName)) {
             SendMessage sendMessage = new SendMessage();
             sendMessage.setChatId(message.getChatId());
@@ -111,7 +111,11 @@ public class BotService extends TelegramLongPollingBot {
         if (text.equalsIgnoreCase("/start")) {
             SendMessage sendMessage = new SendMessage();
             sendMessage.setChatId(message.getChatId());
-            sendMessage.setText("type /c to clean \ntype /r for register");
+            sendMessage.setText("""
+                    Type "/c" to clean.
+                    Type "/r" to register.
+                    To force GPT-4, use the "f.query" format; otherwise, it will first attempt GPT-4, and in case of failure, it will return an answer from GPT-3.
+                    """);
             execute(sendMessage);
             return;
         }
@@ -156,8 +160,11 @@ public class BotService extends TelegramLongPollingBot {
         Integer messageId = message.getMessageId();
         Long chatId = message.getChatId();
 
+        long start = System.currentTimeMillis();
         ChatMessage process = openApiCall(userId, messageId, message.getText());
+        long end = System.currentTimeMillis();
 
+        process.setContent(process.getContent() + " " + (end - start) / 1000 + "s.");
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId);
         sendMessage.setText(process.getContent());
@@ -168,27 +175,37 @@ public class BotService extends TelegramLongPollingBot {
 
     private ChatMessage openApiCall(Long userId, Integer messageId, String query) {
 
+        try {
+            if (query.startsWith("f.")) {
+                return openApiInnerCall(userId, messageId, query.substring(2), serviceWithoutTimeout, "gpt-4");
+            }
+
+            try {
+                return openApiInnerCall(userId, messageId, query.substring(2), serviceWithTimeout, "gpt-4");
+            } catch (Exception e) {
+                return openApiInnerCall(userId, messageId, query.substring(2), serviceWithTimeout, "gpt-3.5-turbo");
+            }
+        } catch (Exception ex) {
+            log.error(ex.getMessage(), ex);
+            return new CustomChatMessage(ChatMessageRole.ASSISTANT.value(), "error", new Random().nextInt());
+        }
+    }
+
+    private ChatMessage openApiInnerCall(Long userId, Integer messageId, String query, OpenAiService service, String model) {
         List<ChatMessage> messages = history.getOrDefault(userId, new ArrayList<>());
 
         CustomChatMessage userMessage = new CustomChatMessage(ChatMessageRole.USER.value(), query, messageId);
         messages.add(userMessage);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                 .builder()
-//                .model("gpt-4-1106-preview")
-                .model("gpt-4")
+                .model(model)
                 .messages(messages)
-                .maxTokens(500)
                 .build();
-        for (int i = 0; i < 3; i++) {
-            try {
-                ChatCompletionResult chatCompletion = service.createChatCompletion(chatCompletionRequest);
-                return chatCompletion.getChoices().get(0).getMessage();
-            } catch (Exception e) {
-                log.error(e.getMessage(), e);
-            }
-        }
 
-        return new CustomChatMessage(ChatMessageRole.ASSISTANT.value(), "error", new Random().nextInt());
+        ChatCompletionResult chatCompletion = service.createChatCompletion(chatCompletionRequest);
+        ChatMessage message = chatCompletion.getChoices().get(0).getMessage();
+        message.setContent(message.getContent() + " " + model);
+        return message;
     }
 
     private void addToHistory(Long userId, Integer messageId, ChatMessage process) {
